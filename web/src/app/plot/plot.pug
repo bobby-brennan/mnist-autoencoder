@@ -1,0 +1,22 @@
+.row
+  .col-xs-12.col-sm-9
+    .plot((click)="onClick($event)")
+      .point.click-point(*ngIf="xCoord !== undefined" [style.left]="xCoord + 'px'" [style.top]="yCoord + 'px'")
+      .point(*ngFor="let image of images || []"
+          [style.left]="getCoord(image.encoding[0]) + 'px'"
+          [style.top]="getCoord(image.encoding[1]) + 'px'"
+          [style.background-color]="labelColors[image.label]")
+  .col-sm-3
+    .color(*ngFor="let color of labelColors; let idx = index")
+      .point([style.background-color]="color")
+      h4 {{ idx }}
+    image(*ngIf="pixels" [pixels]="pixels")
+
+.example-images(*ngIf="images")
+  .example-image(*ngFor="let image of images")
+    h4 {{ image.label }}
+    .row
+      .col-xs-6
+        image([pixels]="image.image")
+      .col-xs-6
+        image([pixels]="image.decoded")
