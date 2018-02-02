@@ -26,7 +26,7 @@ GRID_ROWS = 5
 GRID_COLS = 10
 ENCODING_SIZE = 2
 USE_RELU = True
-
+TRAINING_STEPS = 100000
 
 def weight_variable(shape):
     # From the mnist tutorial
@@ -39,32 +39,38 @@ def bias_variable(shape):
     return tf.Variable(initial)
 
 
-def fc_layer(previous, input_size, output_size):
+def fc_layer(previous, input_size, output_size, name=""):
     W = weight_variable([input_size, output_size])
     b = bias_variable([output_size])
-    return tf.matmul(previous, W) + b
+    return tf.add(tf.matmul(previous, W), b, name=name)
 
-
-def autoencoder(x):
+def encoder(x):
     # first fully connected layer with 50 neurons using tanh activation
     l1 = tf.nn.tanh(fc_layer(x, 28*28, 50))
     # second fully connected layer with 50 neurons using tanh activation
     l2 = tf.nn.tanh(fc_layer(l1, 50, 50))
     # third fully connected layer with 2 neurons
-    l3 = fc_layer(l2, 50, ENCODING_SIZE)
+    l3 = fc_layer(l2, 50, ENCODING_SIZE, "Encoding")
+    return l3
+
+def decoder(encoded):
     # fourth fully connected layer with 50 neurons and tanh activation
-    l4 = tf.nn.tanh(fc_layer(l3, ENCODING_SIZE, 50))
+    l4 = tf.nn.tanh(fc_layer(encoded, ENCODING_SIZE, 50))
     # fifth fully connected layer with 50 neurons and tanh activation
     l5 = tf.nn.tanh(fc_layer(l4, 50, 50))
     # readout layer
     if USE_RELU:
-        out = tf.nn.relu(fc_layer(l5, 50, 28*28))
+        out = tf.nn.relu(fc_layer(l5, 50, 28*28), name="Decoded")
     else:
-        out = fc_layer(l5, 50, 28*28)
-    # let's use an l2 loss on the output image
-    loss = tf.reduce_mean(tf.squared_difference(x, out))
-    return loss, out, l3
+        out = fc_layer(l5, 50, 28*28, "Decoded")
+    return out
 
+def autoencoder(x):
+    encoded = encoder(x)
+    decoded = decoder(encoded)
+    # let's use an l2 loss on the output image
+    loss = tf.reduce_mean(tf.squared_difference(x, decoded), name="Loss")
+    return loss, decoded, encoded
 
 def layer_grid_summary(name, var, image_dims):
     prod = np.prod(image_dims)
@@ -138,12 +144,14 @@ def main():
 
     first_batch = mnist.train.next_batch(BATCH_SIZE)
 
+    saver = tf.train.Saver()
+
     # Run the training loop
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         sess.run(make_image("images/input.jpg", x, [28, 28]), feed_dict={x : 
             first_batch[0]})
-        for i in range(int(200001)):
+        for i in range(int(TRAINING_STEPS + 1)):
             batch = mnist.train.next_batch(BATCH_SIZE)
             feed = {x : batch[0]}
             if i % 500 == 0:
@@ -171,6 +179,7 @@ def main():
         else:
             fname = "latent_default.csv"
         np.savetxt(fname, pred)
+        saver.save(sess, "./model.ckpt")
 
 
 if __name__ == '__main__':
