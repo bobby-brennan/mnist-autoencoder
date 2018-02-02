@@ -26,7 +26,7 @@ GRID_ROWS = 5
 GRID_COLS = 10
 ENCODING_SIZE = 2
 USE_RELU = True
-TRAINING_STEPS = 100000
+TRAINING_STEPS = 200000
 
 def weight_variable(shape):
     # From the mnist tutorial
@@ -39,7 +39,7 @@ def bias_variable(shape):
     return tf.Variable(initial)
 
 
-def fc_layer(previous, input_size, output_size, name=""):
+def fc_layer(previous, input_size, output_size, name=None):
     W = weight_variable([input_size, output_size])
     b = bias_variable([output_size])
     return tf.add(tf.matmul(previous, W), b, name=name)
@@ -50,7 +50,7 @@ def encoder(x):
     # second fully connected layer with 50 neurons using tanh activation
     l2 = tf.nn.tanh(fc_layer(l1, 50, 50))
     # third fully connected layer with 2 neurons
-    l3 = fc_layer(l2, 50, ENCODING_SIZE, "Encoding")
+    l3 = fc_layer(l2, 50, ENCODING_SIZE, "Encoded")
     return l3
 
 def decoder(encoded):
@@ -131,7 +131,7 @@ def main():
     mnist = input_data.read_data_sets('/tmp/MNIST_data')
 
     # placeholders for the images
-    x = tf.placeholder(tf.float32, shape=[None, 784])
+    x = tf.placeholder(tf.float32, shape=[None, 784], name="x")
 
     # build the model
     loss, output, latent = autoencoder(x)
@@ -149,8 +149,7 @@ def main():
     # Run the training loop
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        sess.run(make_image("images/input.jpg", x, [28, 28]), feed_dict={x : 
-            first_batch[0]})
+        sess.run(make_image("images/input.jpg", x, [28, 28]), feed_dict={x : first_batch[0]})
         for i in range(int(TRAINING_STEPS + 1)):
             batch = mnist.train.next_batch(BATCH_SIZE)
             feed = {x : batch[0]}
@@ -163,8 +162,7 @@ def main():
                 writer.flush()
 
             if i % 1000 == 0:
-                sess.run(make_image("images/output_%06i.jpg" % i, output, [28, 
-                    28]), feed_dict={x : first_batch[0]})
+                sess.run(make_image("images/output_%06i.jpg" % i, output, [28, 28]), feed_dict={x : first_batch[0]})
 
             train_step.run(feed_dict=feed)
 
@@ -179,7 +177,7 @@ def main():
         else:
             fname = "latent_default.csv"
         np.savetxt(fname, pred)
-        saver.save(sess, "./model.ckpt")
+        saver.save(sess, "./model/model.ckpt")
 
 
 if __name__ == '__main__':
