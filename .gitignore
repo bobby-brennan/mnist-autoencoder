@@ -2,3 +2,4 @@ images/
 logs/
 combined.gif
 latent_relu.csv
+*.pyc
