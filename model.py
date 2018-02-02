@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 
 MODEL_DIR = "./model/model.ckpt"
 
@@ -13,10 +14,11 @@ class Model(object):
     self.x = self.session.graph.get_tensor_by_name('x:0')
 
   def encode(self, image):
+    image = np.reshape(image, [28*28])
     val = self.session.run(self.encoded, feed_dict={self.x: [image]})
     return val[0]
 
   def decode(self, encoding):
     val = self.session.run(self.decoded, feed_dict={self.encoded: [encoding]})
-    return val[0]
+    return np.reshape(val[0], [28, 28])
 
