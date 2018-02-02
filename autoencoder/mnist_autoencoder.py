@@ -24,7 +24,8 @@ from tensorflow.examples.tutorials.mnist import input_data
 BATCH_SIZE = 50
 GRID_ROWS = 5
 GRID_COLS = 10
-USE_RELU = False
+ENCODING_SIZE = 2
+USE_RELU = True
 
 
 def weight_variable(shape):
@@ -50,9 +51,9 @@ def autoencoder(x):
     # second fully connected layer with 50 neurons using tanh activation
     l2 = tf.nn.tanh(fc_layer(l1, 50, 50))
     # third fully connected layer with 2 neurons
-    l3 = fc_layer(l2, 50, 2)
+    l3 = fc_layer(l2, 50, ENCODING_SIZE)
     # fourth fully connected layer with 50 neurons and tanh activation
-    l4 = tf.nn.tanh(fc_layer(l3, 2, 50))
+    l4 = tf.nn.tanh(fc_layer(l3, ENCODING_SIZE, 50))
     # fifth fully connected layer with 50 neurons and tanh activation
     l5 = tf.nn.tanh(fc_layer(l4, 50, 50))
     # readout layer
@@ -76,7 +77,7 @@ def create_summaries(loss, x, latent, output):
     writer = tf.summary.FileWriter("./logs")
     tf.summary.scalar("Loss", loss)
     layer_grid_summary("Input", x, [28, 28])
-    layer_grid_summary("Encoder", latent, [2, 1])
+    layer_grid_summary("Encoder", latent, [ENCODING_SIZE, 1])
     layer_grid_summary("Output", output, [28, 28])
     return writer, tf.summary.merge_all()
 
@@ -162,7 +163,7 @@ def main():
         # Save latent space
         pred = sess.run(latent, feed_dict={x : mnist.test._images})
         pred = np.asarray(pred)
-        pred = np.reshape(pred, (mnist.test._num_examples, 2))
+        pred = np.reshape(pred, (mnist.test._num_examples, ENCODING_SIZE))
         labels = np.reshape(mnist.test._labels, (mnist.test._num_examples, 1))
         pred = np.hstack((pred, labels))
         if USE_RELU:
