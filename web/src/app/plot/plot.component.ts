@@ -4,7 +4,7 @@ import {EncoderService} from '../services/encoder.service';
 declare let window:any;
 
 const PLOT_SIZE = 500;
-const WINDOW_SIZE = 15;
+const WINDOW_SIZE = 1;
 
 @Component({
     selector: 'plot',
