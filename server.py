@@ -9,12 +9,14 @@ app.config['CORS_HEADERS'] = 'Content-Type'
 
 m = Model()
 
-mnist = input_data.read_data_sets('/tmp/MNIST_data')
-images = mnist.train.images[0:50];
-labels = mnist.train.labels[0:50];
+NUM_SAMPLES = 100
 
-labeled_images = [None] * 50
-for i in range(0, 50):
+mnist = input_data.read_data_sets('/tmp/MNIST_data')
+images = mnist.train.images[0:NUM_SAMPLES];
+labels = mnist.train.labels[0:NUM_SAMPLES];
+
+labeled_images = [None] * NUM_SAMPLES
+for i in range(0, NUM_SAMPLES):
     image = np.reshape(images[i], [28, 28])
     labeled_images[i] = {
         'image': image.tolist(),
