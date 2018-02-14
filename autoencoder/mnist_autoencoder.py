@@ -21,23 +21,24 @@ import tensorflow as tf
 from magenta.models.image_stylization.image_utils import form_image_grid
 from tensorflow.examples.tutorials.mnist import input_data
 
+MODEL_FILE = "./model/model.ckpt"
+
 BATCH_SIZE = 50
 GRID_ROWS = 5
 GRID_COLS = 10
-ENCODING_SIZE = 2
-USE_RELU = True
 TRAINING_STEPS = 200000
+
+ENCODING_SIZE = 2
+IMAGE_SIZE = 28*28
 
 def weight_variable(shape):
     # From the mnist tutorial
     initial = tf.truncated_normal(shape, stddev=0.1)
     return tf.Variable(initial)
 
-
 def bias_variable(shape):
     initial = tf.constant(0.1, shape=shape)
     return tf.Variable(initial)
-
 
 def fc_layer(previous, input_size, output_size, name=None):
     W = weight_variable([input_size, output_size])
@@ -46,11 +47,11 @@ def fc_layer(previous, input_size, output_size, name=None):
 
 def encoder(x):
     # first fully connected layer with 50 neurons using tanh activation
-    l1 = tf.nn.tanh(fc_layer(x, 28*28, 50))
+    l1 = tf.nn.tanh(fc_layer(x, IMAGE_SIZE, 50))
     # second fully connected layer with 50 neurons using tanh activation
     l2 = tf.nn.tanh(fc_layer(l1, 50, 50))
     # third fully connected layer with 2 neurons
-    l3 = fc_layer(l2, 50, ENCODING_SIZE, "Encoded")
+    l3 = tf.nn.tanh(fc_layer(l2, 50, ENCODING_SIZE), name="Encoded")
     return l3
 
 def decoder(encoded):
@@ -59,11 +60,14 @@ def decoder(encoded):
     # fifth fully connected layer with 50 neurons and tanh activation
     l5 = tf.nn.tanh(fc_layer(l4, 50, 50))
     # readout layer
-    if USE_RELU:
-        out = tf.nn.relu(fc_layer(l5, 50, 28*28), name="Decoded")
-    else:
-        out = fc_layer(l5, 50, 28*28, "Decoded")
+    out = tf.nn.relu(fc_layer(l5, 50, IMAGE_SIZE), name="Decoded")
     return out
+
+def discriminator(x):
+    l1 = tf.nn.tanh(fc_layer(x, IMAGE_SIZE, 50))
+    l2 = tf.nn.tanh(fc_layer(l1, 50, 50))
+    l3 = tf.nn.tanh(fc_layer(l2, 50, 1, "Discriminated"))
+    return l3
 
 def autoencoder(x):
     encoded = encoder(x)
@@ -72,10 +76,24 @@ def autoencoder(x):
     loss = tf.reduce_mean(tf.squared_difference(x, decoded), name="Loss")
     return loss, decoded, encoded
 
+def gancoder(x, fake_encoded):
+    encoded = encoder(x)
+    decoded = decoder(encoded)
+    decoded_fake = decoder(fake_encoded)
+    discriminated = discriminator(decoded)
+    discriminated_fake = discriminator(decoded_fake)
+    discriminator_loss_real = tf.reduce_mean(tf.abs(discriminated - 1))
+    discriminator_loss_fake = tf.reduce_mean(tf.abs(discriminated_fake + 1))
+    discriminator_loss = discriminator_loss_real + discriminator_loss_fake
+    generator_loss = tf.reduce_mean(tf.squared_difference(x, decoded), name="GenLoss")
+    #discriminator_loss_real = tf.reduce_mean(tf.squared_difference(discriminated, tf.ones([BATCH_SIZE])))
+    #discriminator_loss_fake = tf.reduce_mean(tf.squared_difference(discriminated_fake, tf.zeros([BATCH_SIZE])))
+    #discriminator_loss = discriminator_loss_real + discriminator_loss_fake
+    return generator_loss, discriminator_loss, decoded, encoded
+
 def layer_grid_summary(name, var, image_dims):
     prod = np.prod(image_dims)
-    grid = form_image_grid(tf.reshape(var, [BATCH_SIZE, prod]), [GRID_ROWS, 
-        GRID_COLS], image_dims, 1)
+    grid = form_image_grid(tf.reshape(var, [BATCH_SIZE, prod]), [GRID_ROWS, GRID_COLS], image_dims, 1)
     return tf.summary.image(name, grid)
 
 
@@ -87,6 +105,14 @@ def create_summaries(loss, x, latent, output):
     layer_grid_summary("Output", output, [28, 28])
     return writer, tf.summary.merge_all()
 
+def create_gan_summaries(g_loss, d_loss, x, latent, output):
+    writer = tf.summary.FileWriter("./logs")
+    tf.summary.scalar("GenLoss", g_loss)
+    tf.summary.scalar("DisLoss", d_loss)
+    layer_grid_summary("Input", x, [28, 28])
+    layer_grid_summary("Encoder", latent, [ENCODING_SIZE, 1])
+    layer_grid_summary("Output", output, [28, 28])
+    return writer, tf.summary.merge_all()
 
 def make_image(name, var, image_dims):
     prod = np.prod(image_dims)
@@ -126,24 +152,25 @@ def make_image(name, var, image_dims):
     return fwrite
 
 
-def main():
+def run(gan=False):
     # initialize the data
     mnist = input_data.read_data_sets('/tmp/MNIST_data')
 
     # placeholders for the images
     x = tf.placeholder(tf.float32, shape=[None, 784], name="x")
 
-    # build the model
-    loss, output, latent = autoencoder(x)
-
-    # and we use the Adam Optimizer for training
-    train_step = tf.train.AdamOptimizer(1e-4).minimize(loss)
-
-    # We want to use Tensorboard to visualize some stuff
-    writer, summary_op = create_summaries(loss, x, latent, output)
+    if gan:
+      rand = tf.placeholder(tf.float32, shape=[None, ENCODING_SIZE], name="rand")
+      g_loss, d_loss, output, latent = gancoder(x, rand)
+      g_train_step = tf.train.AdamOptimizer(1e-4).minimize(g_loss - d_loss)
+      d_train_step = tf.train.AdamOptimizer(1e-4).minimize(d_loss)
+      writer, summary_op = create_gan_summaries(g_loss, d_loss, x, latent, output)
+    else:
+      loss, output, latent = autoencoder(x)
+      train_step = tf.train.AdamOptimizer(1e-4).minimize(loss)
+      writer, summary_op = create_summaries(loss, x, latent, output)
 
     first_batch = mnist.train.next_batch(BATCH_SIZE)
-
     saver = tf.train.Saver()
 
     # Run the training loop
@@ -152,19 +179,28 @@ def main():
         sess.run(make_image("images/input.jpg", x, [28, 28]), feed_dict={x : first_batch[0]})
         for i in range(int(TRAINING_STEPS + 1)):
             batch = mnist.train.next_batch(BATCH_SIZE)
-            feed = {x : batch[0]}
+            rands = np.random.uniform(size=[BATCH_SIZE, ENCODING_SIZE], low=-1.0, high=1.0)
+            feed = {x : batch[0], rand : rands}
             if i % 500 == 0:
-                summary, train_loss = sess.run([summary_op, loss], 
-                        feed_dict=feed)
-                print("step %d, training loss: %g" % (i, train_loss))
+                if gan:
+                  summary, g_loss_cur, d_loss_cur = sess.run([summary_op, g_loss, d_loss], feed_dict=feed)
+                  print("step %d, g loss: %g, d loss: %g" % (i, g_loss_cur, d_loss_cur))
+                else:
+                  summary, train_loss = sess.run([summary_op, loss], feed_dict=feed)
+                  print("step %d, training loss: %g" % (i, train_loss))
 
                 writer.add_summary(summary, i)
                 writer.flush()
 
             if i % 1000 == 0:
                 sess.run(make_image("images/output_%06i.jpg" % i, output, [28, 28]), feed_dict={x : first_batch[0]})
+                saver.save(sess, MODEL_FILE)
 
-            train_step.run(feed_dict=feed)
+            if gan:
+              g_train_step.run(feed_dict=feed)
+              d_train_step.run(feed_dict=feed)
+            else:
+              train_step.run(feed_dict=feed)
 
         # Save latent space
         pred = sess.run(latent, feed_dict={x : mnist.test._images})
@@ -172,13 +208,11 @@ def main():
         pred = np.reshape(pred, (mnist.test._num_examples, ENCODING_SIZE))
         labels = np.reshape(mnist.test._labels, (mnist.test._num_examples, 1))
         pred = np.hstack((pred, labels))
-        if USE_RELU:
-            fname = "latent_relu.csv"
-        else:
-            fname = "latent_default.csv"
-        np.savetxt(fname, pred)
-        saver.save(sess, "./model/model.ckpt")
+        np.savetxt("latent_relu.csv", pred)
+        saver.save(sess, MODEL_FILE)
 
+def main():
+  run(True)
 
 if __name__ == '__main__':
     main()
