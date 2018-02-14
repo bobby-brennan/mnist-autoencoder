@@ -22,6 +22,7 @@ from magenta.models.image_stylization.image_utils import form_image_grid
 from tensorflow.examples.tutorials.mnist import input_data
 
 MODEL_FILE = "./model/model.ckpt"
+GAN_MODEL_FILE = "./gan_model/model.ckpt"
 
 BATCH_SIZE = 50
 GRID_ROWS = 5
@@ -96,7 +97,6 @@ def layer_grid_summary(name, var, image_dims):
     grid = form_image_grid(tf.reshape(var, [BATCH_SIZE, prod]), [GRID_ROWS, GRID_COLS], image_dims, 1)
     return tf.summary.image(name, grid)
 
-
 def create_summaries(loss, x, latent, output):
     writer = tf.summary.FileWriter("./logs")
     tf.summary.scalar("Loss", loss)
@@ -158,9 +158,9 @@ def run(gan=False):
 
     # placeholders for the images
     x = tf.placeholder(tf.float32, shape=[None, 784], name="x")
+    rand = tf.placeholder(tf.float32, shape=[None, ENCODING_SIZE], name="rand")
 
     if gan:
-      rand = tf.placeholder(tf.float32, shape=[None, ENCODING_SIZE], name="rand")
       g_loss, d_loss, output, latent = gancoder(x, rand)
       g_train_step = tf.train.AdamOptimizer(1e-4).minimize(g_loss - d_loss)
       d_train_step = tf.train.AdamOptimizer(1e-4).minimize(d_loss)
@@ -194,7 +194,7 @@ def run(gan=False):
 
             if i % 1000 == 0:
                 sess.run(make_image("images/output_%06i.jpg" % i, output, [28, 28]), feed_dict={x : first_batch[0]})
-                saver.save(sess, MODEL_FILE)
+                saver.save(sess, GAN_MODEL_FILE if gan else MODEL_FILE)
 
             if gan:
               g_train_step.run(feed_dict=feed)
@@ -209,10 +209,10 @@ def run(gan=False):
         labels = np.reshape(mnist.test._labels, (mnist.test._num_examples, 1))
         pred = np.hstack((pred, labels))
         np.savetxt("latent_relu.csv", pred)
-        saver.save(sess, MODEL_FILE)
+        saver.save(sess, GAN_MODEL_FILE if gan else MODEL_FILE)
 
 def main():
-  run(True)
+  run(False)
 
 if __name__ == '__main__':
     main()
