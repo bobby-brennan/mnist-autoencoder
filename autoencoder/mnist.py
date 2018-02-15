@@ -1,28 +1,13 @@
 #!/usr/bin/env python
-
-"""TensorFlow MNIST AutoEncoder
-
-This is my attempt to write the autoencoder for MNIST by Andrej Karpathy using 
-ConvNetJS in TensorFlow. Mostly to get some more experience working in 
-Tensorflow.
-
-Sources:
-    - http://cs.stanford.edu/people/karpathy/convnetjs/demo/autoencoder.html
-    - https://www.tensorflow.org/get_started/mnist/pros
-
-Author: Gertjan van den Burg
-Date: Thu Oct 26 16:49:29 CEST 2017
-
-"""
-
 import numpy as np
 import tensorflow as tf
+from autoencoder import *
 
 from magenta.models.image_stylization.image_utils import form_image_grid
 from tensorflow.examples.tutorials.mnist import input_data
 
 MODEL_FILE = "./model/model.ckpt"
-GAN_MODEL_FILE = "./gan_model/model.ckpt"
+GAN_MODEL_FILE = "./gan_model2/model.ckpt"
 
 BATCH_SIZE = 50
 GRID_ROWS = 5
@@ -31,70 +16,6 @@ TRAINING_STEPS = 2000000
 
 ENCODING_SIZE = 2
 IMAGE_SIZE = 28*28
-
-def weight_variable(shape, name):
-    # From the mnist tutorial
-    initial = tf.truncated_normal(shape, stddev=0.1)
-    return tf.Variable(initial, name=name)
-
-def bias_variable(shape, name):
-    initial = tf.constant(0.1, shape=shape)
-    return tf.Variable(initial, name=name)
-
-def fc_layer(previous, input_size, output_size, name):
-    W = weight_variable([input_size, output_size], name + '_W')
-    b = bias_variable([output_size], name + '_b')
-    return tf.add(tf.matmul(previous, W), b, name=name)
-
-def encoder(x):
-    # first fully connected layer with 50 neurons using tanh activation
-    l1 = tf.nn.tanh(fc_layer(x, IMAGE_SIZE, 50, 'encoder_1'))
-    # second fully connected layer with 50 neurons using tanh activation
-    l2 = tf.nn.tanh(fc_layer(l1, 50, 50, 'encoder_2'))
-    # third fully connected layer with 2 neurons
-    l3 = tf.nn.tanh(fc_layer(l2, 50, ENCODING_SIZE, 'encoder_3'), name="Encoded")
-    return l3
-
-def decoder(encoded):
-    # fourth fully connected layer with 50 neurons and tanh activation
-    l4 = tf.nn.tanh(fc_layer(encoded, ENCODING_SIZE, 50, 'decoder_1'))
-    # fifth fully connected layer with 50 neurons and tanh activation
-    l5 = tf.nn.tanh(fc_layer(l4, 50, 50, 'decoder_2'))
-    # readout layer
-    out = tf.nn.relu(fc_layer(l5, 50, IMAGE_SIZE, 'decoder_3'), name="Decoded")
-    return out
-
-def discriminator(x):
-    l1 = tf.nn.tanh(fc_layer(x, IMAGE_SIZE, 50, 'discriminator_1'))
-    l2 = tf.nn.tanh(fc_layer(l1, 50, 50, 'discriminator_2',))
-    l3 = tf.nn.tanh(fc_layer(l2, 50, 1, 'discriminator_3'), name="Discriminated")
-    return l3
-
-def autoencoder(x):
-    encoded = encoder(x)
-    decoded = decoder(encoded)
-    # let's use an l2 loss on the output image
-    loss = tf.reduce_mean(tf.squared_difference(x, decoded), name="Loss")
-    return loss, decoded, encoded
-
-def add_noise(x):
-    noise = tf.random_normal(shape=tf.shape(x), mean=0.5, stddev=5)
-    return x + noise
-
-def gancoder(x, fake_encoded):
-    encoded = encoder(x)
-    decoded = decoder(encoded)
-    decoded_fake = decoder(fake_encoded)
-    discriminated = discriminator(add_noise(x))
-    discriminated_fake = discriminator(add_noise(decoded_fake))
-    discriminator_loss_real = tf.reduce_mean(tf.abs(discriminated - 1))
-    discriminator_loss_fake = tf.reduce_mean(tf.abs(discriminated_fake + 1))
-    discriminator_loss = (discriminator_loss_real + discriminator_loss_fake) / 4
-    generator_loss = tf.reduce_mean(tf.squared_difference(x, decoded), name="GenLoss")
-    #discriminator_loss_real = tf.reduce_mean(tf.squared_difference(discriminated, tf.ones([BATCH_SIZE])))
-    #discriminator_loss_fake = tf.reduce_mean(tf.squared_difference(discriminated_fake, tf.zeros([BATCH_SIZE])))
-    #discriminator_loss = discriminator_loss_real + discriminator_loss_fake
-    return generator_loss, discriminator_loss, decoded, encoded
 
 def layer_grid_summary(name, var, image_dims):
     prod = np.prod(image_dims)
@@ -165,7 +86,7 @@ def run(gan=False):
     rand = tf.placeholder(tf.float32, shape=[None, ENCODING_SIZE], name="rand")
 
     if gan:
-      g_loss, d_loss, output, latent = gancoder(x, rand)
+      g_loss, d_loss, output, latent = Autoencoder.gancoder(x, rand)
       all_vars = tf.trainable_variables()
       g_vars = [var for var in all_vars if 'discriminator_' not in var.name]
       d_vars = [var for var in all_vars if 'discriminator_' in var.name]
@@ -173,7 +94,7 @@ def run(gan=False):
       d_train_step = tf.train.AdamOptimizer(1e-4).minimize(d_loss, var_list=d_vars)
       writer, summary_op = create_gan_summaries(g_loss, d_loss, x, latent, output)
     else:
-      loss, output, latent = autoencoder(x)
+      loss, output, latent = Autoencoder.autoencoder(x)
       train_step = tf.train.AdamOptimizer(1e-4).minimize(loss)
       writer, summary_op = create_summaries(loss, x, latent, output)
 
