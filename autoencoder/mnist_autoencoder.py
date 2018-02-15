@@ -85,7 +85,7 @@ def gancoder(x, fake_encoded):
     encoded = encoder(x)
     decoded = decoder(encoded)
     decoded_fake = decoder(fake_encoded)
-    discriminated = discriminator(add_noise(decoded))
+    discriminated = discriminator(add_noise(x))
     discriminated_fake = discriminator(add_noise(decoded_fake))
     discriminator_loss_real = tf.reduce_mean(tf.abs(discriminated - 1))
     discriminator_loss_fake = tf.reduce_mean(tf.abs(discriminated_fake + 1))
