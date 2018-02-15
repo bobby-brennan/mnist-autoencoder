@@ -7,7 +7,7 @@ from magenta.models.image_stylization.image_utils import form_image_grid
 from tensorflow.examples.tutorials.mnist import input_data
 
 MODEL_FILE = "./model/model.ckpt"
-GAN_MODEL_FILE = "./gan_model2/model.ckpt"
+GAN_MODEL_FILE = "./gan_model/model.ckpt"
 
 BATCH_SIZE = 50
 GRID_ROWS = 5
@@ -16,6 +16,10 @@ TRAINING_STEPS = 2000000
 
 ENCODING_SIZE = 2
 IMAGE_SIZE = 28*28
+
+GENERATOR_LOSS_WEIGHT = .99
+DISCRIMINATOR_LOSS_WEIGHT = 1 - GENERATOR_LOSS_WEIGHT
+DISCRIMINATOR_STEPS = 1
 
 def layer_grid_summary(name, var, image_dims):
     prod = np.prod(image_dims)
@@ -83,15 +87,17 @@ def run(gan=False):
 
     # placeholders for the images
     x = tf.placeholder(tf.float32, shape=[None, 784], name="x")
-    rand = tf.placeholder(tf.float32, shape=[None, ENCODING_SIZE], name="rand")
 
     if gan:
-      g_loss, d_loss, output, latent = Autoencoder.gancoder(x, rand)
+      g_loss, d_loss, output, latent, discriminated = Autoencoder.gancoder(x)
+      composite_loss = GENERATOR_LOSS_WEIGHT * g_loss - DISCRIMINATOR_LOSS_WEIGHT * d_loss
       all_vars = tf.trainable_variables()
-      g_vars = [var for var in all_vars if 'discriminator_' not in var.name]
-      d_vars = [var for var in all_vars if 'discriminator_' in var.name]
-      g_train_step = tf.train.AdamOptimizer(1e-4).minimize(g_loss - d_loss, var_list=g_vars)
-      d_train_step = tf.train.AdamOptimizer(1e-4).minimize(d_loss, var_list=d_vars)
+      enc_vars = [var for var in all_vars if 'encoder_' in var.name]
+      dec_vars = [var for var in all_vars if 'decoder_' in var.name]
+      dis_vars = [var for var in all_vars if 'discriminator_' in var.name]
+      assert len(enc_vars) + len(dec_vars) + len(dis_vars) == len(all_vars)
+      gen_train_step = tf.train.AdamOptimizer(1e-4).minimize(composite_loss, var_list=(enc_vars + dec_vars))
+      dis_train_step = tf.train.AdamOptimizer(1e-4).minimize(d_loss, var_list=dis_vars)
       writer, summary_op = create_gan_summaries(g_loss, d_loss, x, latent, output)
     else:
       loss, output, latent = Autoencoder.autoencoder(x)
@@ -107,11 +113,10 @@ def run(gan=False):
         sess.run(make_image("images/input.jpg", x, [28, 28]), feed_dict={x : first_batch[0]})
         for i in range(int(TRAINING_STEPS + 1)):
             batch = mnist.train.next_batch(BATCH_SIZE)
-            rands = np.random.uniform(size=[BATCH_SIZE, ENCODING_SIZE], low=-1.0, high=1.0)
-            feed = {x : batch[0], rand : rands}
+            feed = {x : batch[0]}
             if i % 500 == 0:
                 if gan:
-                  summary, g_loss_cur, d_loss_cur = sess.run([summary_op, g_loss, d_loss], feed_dict=feed)
+                  summary, g_loss_cur, d_loss_cur, discrim = sess.run([summary_op, g_loss, d_loss, discriminated], feed_dict=feed)
                   print("step %d, g loss: %g, d loss: %g" % (i, g_loss_cur, d_loss_cur))
                 else:
                   summary, train_loss = sess.run([summary_op, loss], feed_dict=feed)
@@ -125,8 +130,9 @@ def run(gan=False):
                 saver.save(sess, GAN_MODEL_FILE if gan else MODEL_FILE)
 
             if gan:
-              g_train_step.run(feed_dict=feed)
-              d_train_step.run(feed_dict=feed)
+              gen_train_step.run(feed_dict=feed)
+              for j in range(DISCRIMINATOR_STEPS):
+                dis_train_step.run(feed_dict=feed)
             else:
               train_step.run(feed_dict=feed)
 

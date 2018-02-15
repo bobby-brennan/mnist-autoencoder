@@ -13,7 +13,6 @@ class Autoencoder:
 
     @staticmethod
     def fc_layer(previous, input_size, output_size, name):
-        print("in %d out %d" % (input_size, output_size))
         W = Autoencoder.weight_variable([input_size, output_size], name + '_W')
         b = Autoencoder.bias_variable([output_size], name + '_b')
         return tf.add(tf.matmul(previous, W), b, name=name)
@@ -43,25 +42,26 @@ class Autoencoder:
     def autoencoder(x):
         encoded = Autoencoder.encoder(x, 2)
         decoded = Autoencoder.decoder(encoded, x.get_shape().as_list()[1])
-        # let's use an l2 loss on the output image
         loss = tf.reduce_mean(tf.squared_difference(x, decoded), name="Loss")
         return loss, decoded, encoded
 
     @staticmethod
-    def add_noise(x):
-        noise = tf.random_normal(shape=tf.shape(x), mean=0.5, stddev=5)
+    def add_noise(x, mean, stddev):
+        noise = tf.random_normal(shape=tf.shape(x), mean=mean, stddev=stddev)
         return x + noise
 
     @staticmethod
-    def gancoder(x, fake_encoded):
+    def gancoder(x):
         encoded = Autoencoder.encoder(x, 2)
         decoded = Autoencoder.decoder(encoded, x.get_shape().as_list()[1])
-        decoded_fake = Autoencoder.decoder(fake_encoded, x.get_shape().as_list()[1])
-        discriminated = Autoencoder.discriminator(Autoencoder.add_noise(x))
-        discriminated_fake = Autoencoder.discriminator(Autoencoder.add_noise(decoded_fake))
-        discriminator_loss_real = tf.reduce_mean(tf.abs(discriminated - 1))
-        discriminator_loss_fake = tf.reduce_mean(tf.abs(discriminated_fake + 1))
-        discriminator_loss = (discriminator_loss_real + discriminator_loss_fake) / 4
+
+        to_discriminate = tf.concat([x, decoded], 0)
+        discriminated = Autoencoder.discriminator(to_discriminate)
+        num_inputs = tf.shape(x)[0]
+        num_decodes = tf.shape(decoded)[0]
+        discrimination_labels = tf.concat([tf.ones([num_inputs, 1]), 0 - tf.ones([num_decodes, 1])], 0)
+
+        discriminator_loss = tf.reduce_mean(tf.squared_difference(discrimination_labels, discriminated))
         generator_loss = tf.reduce_mean(tf.squared_difference(x, decoded), name="GenLoss")
-        return generator_loss, discriminator_loss, decoded, encoded
+        return generator_loss, discriminator_loss, decoded, encoded, discriminated
 
