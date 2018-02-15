@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
-MODEL_DIR = "./model/model.ckpt"
+MODEL_DIR = "./gan_model/model.ckpt"
 
 class Model(object):
   def __init__(self):

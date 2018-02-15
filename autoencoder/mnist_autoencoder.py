@@ -85,7 +85,7 @@ def gancoder(x, fake_encoded):
     discriminated_fake = discriminator(decoded_fake)
     discriminator_loss_real = tf.reduce_mean(tf.abs(discriminated - 1))
     discriminator_loss_fake = tf.reduce_mean(tf.abs(discriminated_fake + 1))
-    discriminator_loss = discriminator_loss_real + discriminator_loss_fake
+    discriminator_loss = (discriminator_loss_real + discriminator_loss_fake) / 4
     generator_loss = tf.reduce_mean(tf.squared_difference(x, decoded), name="GenLoss")
     #discriminator_loss_real = tf.reduce_mean(tf.squared_difference(discriminated, tf.ones([BATCH_SIZE])))
     #discriminator_loss_fake = tf.reduce_mean(tf.squared_difference(discriminated_fake, tf.zeros([BATCH_SIZE])))
@@ -162,7 +162,7 @@ def run(gan=False):
 
     if gan:
       g_loss, d_loss, output, latent = gancoder(x, rand)
-      g_train_step = tf.train.AdamOptimizer(1e-4).minimize(g_loss - d_loss)
+      g_train_step = tf.train.AdamOptimizer(1e-4).minimize(g_loss - 10 * tf.minimum(d_loss, .5))
       d_train_step = tf.train.AdamOptimizer(1e-4).minimize(d_loss)
       writer, summary_op = create_gan_summaries(g_loss, d_loss, x, latent, output)
     else:
@@ -212,7 +212,7 @@ def run(gan=False):
         saver.save(sess, GAN_MODEL_FILE if gan else MODEL_FILE)
 
 def main():
-  run(False)
+  run(True)
 
 if __name__ == '__main__':
     main()
