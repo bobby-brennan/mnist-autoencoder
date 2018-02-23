@@ -39,8 +39,8 @@ class Autoencoder:
         return l3
 
     @staticmethod
-    def autoencoder(x):
-        encoded = Autoencoder.encoder(x, 2)
+    def autoencoder(x, encoding_size=2):
+        encoded = Autoencoder.encoder(x, encoding_size)
         decoded = Autoencoder.decoder(encoded, x.get_shape().as_list()[1])
         loss = tf.reduce_mean(tf.squared_difference(x, decoded), name="Loss")
         return loss, decoded, encoded
@@ -51,8 +51,8 @@ class Autoencoder:
         return x + noise
 
     @staticmethod
-    def gancoder(x):
-        encoded = Autoencoder.encoder(x, 2)
+    def gancoder(x, encoding_size=2):
+        encoded = Autoencoder.encoder(x, encoding_size)
         decoded = Autoencoder.decoder(encoded, x.get_shape().as_list()[1])
 
         to_discriminate = tf.concat([x, decoded], 0)

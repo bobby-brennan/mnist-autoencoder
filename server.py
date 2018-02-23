@@ -7,7 +7,8 @@ app = Flask(__name__)
 cors = CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
 
-m = Model()
+MODEL_DIR = "./model/model.ckpt"
+m = Model(MODEL_DIR)
 
 NUM_SAMPLES = 100
 
@@ -21,9 +22,10 @@ for i in range(0, NUM_SAMPLES):
     labeled_images[i] = {
         'image': image.tolist(),
         'label': labels[i].astype('int'),
-        'encoding': m.encode(image).tolist(),
+        'encoding': m.encode([images[i]])[0].tolist(),
     }
-    labeled_images[i]['decoded'] = m.decode(labeled_images[i]['encoding']).tolist()
+    decoded = m.decode([labeled_images[i]['encoding']])
+    labeled_images[i]['decoded'] = np.reshape(decoded[0], [28, 28]).tolist()
 
 @app.route('/images')
 def get_images():
@@ -32,10 +34,12 @@ def get_images():
 @app.route('/encode', methods=["POST"])
 @cross_origin()
 def encode():
-  return jsonify(m.encode(request.json).tolist())
+  image = np.reshape(request.json, [28*28])
+  return jsonify(m.encode([image])[0].tolist())
 
 @app.route('/decode', methods=["POST"])
 @cross_origin()
 def decode():
-  return jsonify(m.decode(request.json).tolist())
+  val = m.decode([request.json])
+  return jsonify(np.reshape(val[0], [28, 28]).tolist())
 
