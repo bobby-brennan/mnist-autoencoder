@@ -1,5 +1,7 @@
 import tensorflow as tf
 
+HIDDEN_SIZE = 50
+
 class Autoencoder:
     @staticmethod
     def weight_variable(shape, name):
@@ -19,23 +21,23 @@ class Autoencoder:
 
     @staticmethod
     def encoder(x, encoding_size):
-        l1 = tf.nn.tanh(Autoencoder.fc_layer(x, x.get_shape().as_list()[1], 50, 'encoder_1'))
-        l2 = tf.nn.tanh(Autoencoder.fc_layer(l1, 50, 50, 'encoder_2'))
-        l3 = tf.nn.tanh(Autoencoder.fc_layer(l2, 50, encoding_size, 'encoder_3'), name="Encoded")
+        l1 = tf.nn.tanh(Autoencoder.fc_layer(x, x.get_shape().as_list()[1], HIDDEN_SIZE, 'encoder_1'))
+        l2 = tf.nn.tanh(Autoencoder.fc_layer(l1, HIDDEN_SIZE, HIDDEN_SIZE, 'encoder_2'))
+        l3 = tf.nn.tanh(Autoencoder.fc_layer(l2, HIDDEN_SIZE, encoding_size, 'encoder_3'), name="Encoded")
         return l3
 
     @staticmethod
     def decoder(encoded, out_size):
-        l4 = tf.nn.tanh(Autoencoder.fc_layer(encoded, encoded.get_shape().as_list()[1], 50, 'decoder_1'))
-        l5 = tf.nn.tanh(Autoencoder.fc_layer(l4, 50, 50, 'decoder_2'))
-        out = tf.nn.relu(Autoencoder.fc_layer(l5, 50, out_size, 'decoder_3'), name="Decoded")
+        l4 = tf.nn.tanh(Autoencoder.fc_layer(encoded, encoded.get_shape().as_list()[1], HIDDEN_SIZE, 'decoder_1'))
+        l5 = tf.nn.tanh(Autoencoder.fc_layer(l4, HIDDEN_SIZE, HIDDEN_SIZE, 'decoder_2'))
+        out = tf.nn.relu(Autoencoder.fc_layer(l5, HIDDEN_SIZE, out_size, 'decoder_3'), name="Decoded")
         return out
 
     @staticmethod
     def discriminator(x):
-        l1 = tf.nn.tanh(Autoencoder.fc_layer(x, x.get_shape().as_list()[1], 50, 'discriminator_1'))
-        l2 = tf.nn.tanh(Autoencoder.fc_layer(l1, 50, 50, 'discriminator_2',))
-        l3 = tf.nn.tanh(Autoencoder.fc_layer(l2, 50, 1, 'discriminator_3'), name="Discriminated")
+        l1 = tf.nn.tanh(Autoencoder.fc_layer(x, x.get_shape().as_list()[1], HIDDEN_SIZE, 'discriminator_1'))
+        l2 = tf.nn.tanh(Autoencoder.fc_layer(l1, HIDDEN_SIZE, HIDDEN_SIZE, 'discriminator_2',))
+        l3 = tf.nn.tanh(Autoencoder.fc_layer(l2, HIDDEN_SIZE, 1, 'discriminator_3'), name="Discriminated")
         return l3
 
     @staticmethod
