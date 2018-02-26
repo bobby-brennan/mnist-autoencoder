@@ -27,10 +27,13 @@ class Autoencoder:
         return l3
 
     @staticmethod
-    def decoder(encoded, out_size):
+    def decoder(encoded, out_size, relu=True):
         l4 = tf.nn.tanh(Autoencoder.fc_layer(encoded, encoded.get_shape().as_list()[1], HIDDEN_SIZE, 'decoder_1'))
         l5 = tf.nn.tanh(Autoencoder.fc_layer(l4, HIDDEN_SIZE, HIDDEN_SIZE, 'decoder_2'))
-        out = tf.nn.relu(Autoencoder.fc_layer(l5, HIDDEN_SIZE, out_size, 'decoder_3'), name="Decoded")
+        if relu:
+            out = tf.nn.relu(Autoencoder.fc_layer(l5, HIDDEN_SIZE, out_size, 'decoder_3'), name='Decoded')
+        else:
+            out = Autoencoder.fc_layer(l5, HIDDEN_SIZE, out_size, 'Decoded')
         return out
 
     @staticmethod
@@ -41,10 +44,13 @@ class Autoencoder:
         return l3
 
     @staticmethod
-    def autoencoder(x, encoding_size=2):
-        encoded = Autoencoder.encoder(x, encoding_size)
+    def autoencoder(x, encoding_size=2, cross_entropy=False):
+        encoded = Autoencoder.encoder(x, encoding_size, not cross_entropy)
         decoded = Autoencoder.decoder(encoded, x.get_shape().as_list()[1])
-        loss = tf.reduce_mean(tf.squared_difference(x, decoded), name="Loss")
+        if cross_entropy:
+            loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=x, logits=decoded), name="Loss")
+        else:
+            loss = tf.reduce_mean(tf.squared_difference(x, decoded), name="Loss")
         return loss, decoded, encoded
 
     @staticmethod

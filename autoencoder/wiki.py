@@ -71,7 +71,7 @@ def de_ngram(ngrams, size=NGRAM_SIZE):
 
 def run():
     x = tf.placeholder(tf.float32, shape=[None, INPUT_SIZE * NGRAM_SIZE], name="x")
-    loss, output, latent = Autoencoder.autoencoder(x, ENCODING_SIZE)
+    loss, output, latent = Autoencoder.autoencoder(x, ENCODING_SIZE, True)
     train_step = tf.train.AdamOptimizer(1e-4).minimize(loss)
 
     page = wiki.page(START_PAGE)
