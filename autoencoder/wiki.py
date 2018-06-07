@@ -8,7 +8,8 @@ from autoencoder import *
 MODEL_FILE = "./models/wiki/model.ckpt"
 
 NGRAM_SIZE = 3
-BATCH_SIZE = 500
+BATCH_SIZE = 10
+SAMPLE_LENGTH = 50
 TRAINING_STEPS = 2000000
 
 ENCODING_SIZE = 10
@@ -70,8 +71,9 @@ def de_ngram(ngrams, size=NGRAM_SIZE):
     return chars
 
 def run():
-    x = tf.placeholder(tf.float32, shape=[None, INPUT_SIZE * NGRAM_SIZE], name="x")
-    loss, output, latent = Autoencoder.autoencoder(x, ENCODING_SIZE, True)
+    x = tf.placeholder(tf.float32, shape=[None, SAMPLE_LENGTH, INPUT_SIZE], name="x")
+    seqlen = tf.placeholder(tf.int32, shape=[None])
+    loss, output, latent = Autoencoder.rnncoder(x, seqlen, SAMPLE_LENGTH, 10)
     train_step = tf.train.AdamOptimizer(1e-4).minimize(loss)
 
     page = wiki.page(START_PAGE)
@@ -96,18 +98,23 @@ def run():
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         for i in range(int(TRAINING_STEPS + 1)):
-            if USE_RANDOM_TEXT:
-                batch_text = random_string(BATCH_SIZE)
-            else:
-                start = page_batch_index * BATCH_SIZE
-                batch_text = page.content[start : start + BATCH_SIZE]
-                page_batch_index = page_batch_index + 1
-                if len(batch_text) == 0:
-                    page = get_new_page()
-                    print("Changed to page " + page.title)
-                    batch_text = page.content[0:BATCH_SIZE]
-                    page_batch_index = 0
-            feed = {x : get_ngrams(encode_text(batch_text))}
+            batch = []
+            lens = []
+            for j in range(BATCH_SIZE):
+                if USE_RANDOM_TEXT:
+                    batch_text = random_string(SAMPLE_LENGTH)
+                else:
+                    start = page_batch_index * SAMPLE_LENGTH
+                    batch_text = page.content[start : start + SAMPLE_LENGTH]
+                    page_batch_index = page_batch_index + 1
+                    if len(batch_text) == 0:
+                        page = get_new_page()
+                        print("Changed to page " + page.title)
+                        batch_text = page.content[0:SAMPLE_LENGTH]
+                        page_batch_index = 0
+                lens.append(len(batch_text))
+                batch.append(encode_text(batch_text))
+            feed = {x : batch, seqlen: lens}
             if i % 500 == 0:
                 train_loss = sess.run(loss, feed_dict=feed)
                 print("step %d, training loss: %g" % (i, train_loss))

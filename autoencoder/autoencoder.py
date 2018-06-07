@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-HIDDEN_SIZE = 50
+HIDDEN_SIZE = 40
 
 class Autoencoder:
     @staticmethod
@@ -45,8 +45,8 @@ class Autoencoder:
 
     @staticmethod
     def autoencoder(x, encoding_size=2, cross_entropy=False):
-        encoded = Autoencoder.encoder(x, encoding_size, not cross_entropy)
-        decoded = Autoencoder.decoder(encoded, x.get_shape().as_list()[1])
+        encoded = Autoencoder.encoder(x, encoding_size)
+        decoded = Autoencoder.decoder(encoded, x.get_shape().as_list()[1], not cross_entropy)
         if cross_entropy:
             loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=x, logits=decoded), name="Loss")
         else:
@@ -72,4 +72,32 @@ class Autoencoder:
         discriminator_loss = tf.reduce_mean(tf.squared_difference(discrimination_labels, discriminated))
         generator_loss = tf.reduce_mean(tf.squared_difference(x, decoded), name="GenLoss")
         return generator_loss, discriminator_loss, decoded, encoded, discriminated
+
+    @staticmethod
+    def rnn(x, seqlen, maxlen, output_size, name):
+        x = tf.unstack(x, maxlen, axis=1)
+        w = tf.Variable(tf.random_normal([HIDDEN_SIZE, output_size]))
+        b = tf.Variable(tf.random_normal([output_size]))
+        lstm_cell = tf.contrib.rnn.BasicLSTMCell(HIDDEN_SIZE)
+        outputs, states = tf.contrib.rnn.static_rnn(lstm_cell, x,
+                                                    dtype=tf.float32,
+                                                    sequence_length=seqlen)
+        outputs = tf.stack(outputs)
+        outputs = tf.transpose(outputs, [1, 0, 2])
+        batch_size = tf.shape(outputs)[0]
+        index = tf.range(0, batch_size) * maxlen + (seqlen - 1)
+        outputs = tf.gather(tf.reshape(outputs, [-1, HIDDEN_SIZE]), index)
+        return tf.add(tf.matmul(outputs, w), b)
+
+    @staticmethod
+    def rnncoder(x, seqlen, maxlen, encoding_size=2):
+        print(x.get_shape())
+        encoded = Autoencoder.rnn(x, seqlen, maxlen, encoding_size, "Encoded")
+        print(encoded.get_shape())
+        x_shape = x.get_shape().as_list()
+        decoded = Autoencoder.decoder(encoded, x_shape[1] * x_shape[2], False)
+        decoded = tf.reshape(decoded, [-1, x_shape[1], x_shape[2]])
+        print(decoded.get_shape())
+        loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=x, logits=decoded), name="Loss")
+        return loss, decoded, encoded
 

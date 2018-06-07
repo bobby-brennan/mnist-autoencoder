@@ -52,8 +52,10 @@ def get_data(batch_size, str_size):
             labels.append([1, 0])
     return data, labels, lens
 
-def dynamic_rnn(x, seqlen, w, b):
+def dynamic_rnn(x, seqlen):
     x = tf.unstack(x, SEQ_MAX_LENGTH, 1)
+    w = tf.Variable(tf.random_normal([HIDDEN_SIZE, N_CLASSES]))
+    b = tf.Variable(tf.random_normal([N_CLASSES]))
     lstm_cell = tf.contrib.rnn.BasicLSTMCell(HIDDEN_SIZE)
     outputs, states = tf.contrib.rnn.static_rnn(lstm_cell, x,
                                                 dtype=tf.float32,
@@ -69,8 +71,6 @@ def dynamic_rnn(x, seqlen, w, b):
 def run():
     x = tf.placeholder(tf.float32, shape=[None, SEQ_MAX_LENGTH, INPUT_SIZE], name="x")
     y = tf.placeholder(tf.float32, shape=[None, 2], name="y")
-    w = tf.Variable(tf.random_normal([HIDDEN_SIZE, N_CLASSES]))
-    b = tf.Variable(tf.random_normal([N_CLASSES]))
     seqlen = tf.placeholder(tf.int32, [None])
     pred = dynamic_rnn(x, seqlen, w, b)
 
