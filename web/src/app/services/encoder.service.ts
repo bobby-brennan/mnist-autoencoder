@@ -2,7 +2,7 @@ import {Injectable} from '@angular/core'
 import { Http, Headers } from '@angular/http';
 
 declare let window:any;
-const HOST = "http://" + window.location.hostname + ":3000"
+const HOST = "";
 
 @Injectable()
 export class EncoderService {

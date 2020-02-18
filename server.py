@@ -1,13 +1,15 @@
 from tensorflow.examples.tutorials.mnist import input_data
 import numpy as np
 from model import Model
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS, cross_origin
+import json
 app = Flask(__name__)
 cors = CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
 
-MODEL_DIR = "./model/model.ckpt"
+strategy = "gan"
+MODEL_DIR = "./models/" + strategy + "/model.ckpt"
 m = Model(MODEL_DIR)
 
 NUM_SAMPLES = 100
@@ -43,3 +45,19 @@ def decode():
   val = m.decode([request.json])
   return jsonify(np.reshape(val[0], [28, 28]).tolist())
 
+@app.route('/<path:path>', methods=["GET"])
+def webserver(path):
+    return send_from_directory("web/dist/browser", path)
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return super(NpEncoder, self).default(obj)
+
+app.json_encoder = NpEncoder
