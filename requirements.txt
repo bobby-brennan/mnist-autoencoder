@@ -2,4 +2,3 @@ tensorflow==1.14
 numpy==1.16.4
 magenta
 flask
-flask_cors
