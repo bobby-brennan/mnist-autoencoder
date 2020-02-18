@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import sys, getopt
 import numpy as np
 import tensorflow as tf
 from autoencoder import *
@@ -6,8 +7,7 @@ from autoencoder import *
 from magenta.models.image_stylization.image_utils import form_image_grid
 from tensorflow.examples.tutorials.mnist import input_data
 
-MODEL_FILE = "./model/model.ckpt"
-GAN_MODEL_FILE = "./gan_model/model.ckpt"
+MODELS_DIR = "./models/"
 
 BATCH_SIZE = 50
 GRID_ROWS = 5
@@ -81,14 +81,14 @@ def make_image(name, var, image_dims):
     return fwrite
 
 
-def run(gan=False):
+def run(strategy='autoencoder', loadFromSaved=False):
     # initialize the data
     mnist = input_data.read_data_sets('/tmp/MNIST_data')
 
     # placeholders for the images
     x = tf.placeholder(tf.float32, shape=[None, 784], name="x")
 
-    if gan:
+    if strategy == 'gan':
       g_loss, d_loss, output, latent, discriminated = Autoencoder.gancoder(x)
       composite_loss = GENERATOR_LOSS_WEIGHT * g_loss - DISCRIMINATOR_LOSS_WEIGHT * d_loss
       all_vars = tf.trainable_variables()
@@ -99,10 +99,12 @@ def run(gan=False):
       gen_train_step = tf.train.AdamOptimizer(1e-4).minimize(composite_loss, var_list=(enc_vars + dec_vars))
       dis_train_step = tf.train.AdamOptimizer(1e-4).minimize(d_loss, var_list=dis_vars)
       writer, summary_op = create_gan_summaries(g_loss, d_loss, x, latent, output)
-    else:
+    elif strategy == 'autoencoder':
       loss, output, latent = Autoencoder.autoencoder(x)
       train_step = tf.train.AdamOptimizer(1e-4).minimize(loss)
       writer, summary_op = create_summaries(loss, x, latent, output)
+    else:
+        raise Exception("Unknown strategy: " + strategy)
 
     first_batch = mnist.train.next_batch(BATCH_SIZE)
     saver = tf.train.Saver()
@@ -115,10 +117,10 @@ def run(gan=False):
             batch = mnist.train.next_batch(BATCH_SIZE)
             feed = {x : batch[0]}
             if i % 500 == 0:
-                if gan:
+                if strategy == 'gan':
                   summary, g_loss_cur, d_loss_cur, discrim = sess.run([summary_op, g_loss, d_loss, discriminated], feed_dict=feed)
                   print("step %d, g loss: %g, d loss: %g" % (i, g_loss_cur, d_loss_cur))
-                else:
+                elif strategy == 'autoencoder':
                   summary, train_loss = sess.run([summary_op, loss], feed_dict=feed)
                   print("step %d, training loss: %g" % (i, train_loss))
 
@@ -127,13 +129,13 @@ def run(gan=False):
 
             if i % 1000 == 0:
                 sess.run(make_image("images/output_%06i.jpg" % i, output, [28, 28]), feed_dict={x : first_batch[0]})
-                saver.save(sess, GAN_MODEL_FILE if gan else MODEL_FILE)
+                saver.save(sess, MODELS_DIR + "/" + strategy + "/model.ckpt")
 
-            if gan:
+            if strategy == 'gan':
               gen_train_step.run(feed_dict=feed)
               for j in range(DISCRIMINATOR_STEPS):
                 dis_train_step.run(feed_dict=feed)
-            else:
+            elif strategy == 'autoencoder':
               train_step.run(feed_dict=feed)
 
         # Save latent space
@@ -146,7 +148,19 @@ def run(gan=False):
         saver.save(sess, GAN_MODEL_FILE if gan else MODEL_FILE)
 
 def main():
-  run(True)
+    opts, args = getopt.getopt(sys.argv[1:],"hi:o:",["strategy=","reload="])
+    strategy = 'autoencoder'
+    loadFromSaved = False
+    for opt, arg in opts:
+        if opt.endswith('strategy'):
+            strategy = arg
+        elif opt.endswith('reload'):
+            if arg.lower() == "true":
+                loadFromSaved = True
+    print("Running with strategy", strategy)
+    if loadFromSaved:
+        print("Will load from saved checkpoint")
+    run(strategy, loadFromSaved)
 
 if __name__ == '__main__':
     main()
