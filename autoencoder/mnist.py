@@ -19,7 +19,7 @@ IMAGE_SIZE = 28*28
 
 GENERATOR_LOSS_WEIGHT = .99
 DISCRIMINATOR_LOSS_WEIGHT = 1 - GENERATOR_LOSS_WEIGHT
-DISCRIMINATOR_STEPS = 1
+MAX_GAN_STEPS = 5
 
 def layer_grid_summary(name, var, image_dims):
     prod = np.prod(image_dims)
@@ -108,9 +108,12 @@ def run(strategy='autoencoder', loadFromSaved=False):
 
     first_batch = mnist.train.next_batch(BATCH_SIZE)
     saver = tf.train.Saver()
+    checkpoint_file = MODELS_DIR + "/" + strategy + "/model.ckpt"
 
     # Run the training loop
     with tf.Session() as sess:
+        if loadFromSaved:
+            saver.restore(sess, checkpoint_file)
         sess.run(tf.global_variables_initializer())
         sess.run(make_image("images/input.jpg", x, [28, 28]), feed_dict={x : first_batch[0]})
         for i in range(int(TRAINING_STEPS + 1)):
@@ -129,14 +132,22 @@ def run(strategy='autoencoder', loadFromSaved=False):
 
             if i % 1000 == 0:
                 sess.run(make_image("images/output_%06i.jpg" % i, output, [28, 28]), feed_dict={x : first_batch[0]})
-                saver.save(sess, MODELS_DIR + "/" + strategy + "/model.ckpt")
+                saver.save(sess, checkpoint_file)
 
             if strategy == 'gan':
-              gen_train_step.run(feed_dict=feed)
-              for j in range(DISCRIMINATOR_STEPS):
-                dis_train_step.run(feed_dict=feed)
+                loss_ratio = g_loss_cur / d_loss_cur
+                if loss_ratio < 1:
+                    d_steps = int(1 / loss_ratio)
+                    g_steps = 1
+                else:
+                    d_steps = 1
+                    g_steps = int(loss_ratio)
+                for j in range(min(g_steps, MAX_GAN_STEPS)):
+                    gen_train_step.run(feed_dict=feed)
+                for j in range(min(d_steps, MAX_GAN_STEPS)):
+                    dis_train_step.run(feed_dict=feed)
             elif strategy == 'autoencoder':
-              train_step.run(feed_dict=feed)
+                train_step.run(feed_dict=feed)
 
         # Save latent space
         pred = sess.run(latent, feed_dict={x : mnist.test._images})
